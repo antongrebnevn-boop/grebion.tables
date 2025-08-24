@@ -123,6 +123,28 @@ class TableService
     }
     
     /**
+     * Получить список всех таблиц
+     *
+     * @param array $filter Фильтр
+     * @param array $order Сортировка
+     * @param int $limit Лимит
+     * @return Result
+     */
+    public function getTablesList(array $filter = [], array $order = ['ID' => 'DESC'], int $limit = 0): Result
+    {
+        $result = new Result();
+        
+        try {
+            $tables = $this->tableRepository->getList($filter, $order, $limit);
+            $result->setData($tables);
+        } catch (\Exception $e) {
+            $result->addError(new Error('Ошибка получения списка таблиц: ' . $e->getMessage()));
+        }
+        
+        return $result;
+    }
+    
+    /**
      * Обновить таблицу
      *
      * @param int $id ID таблицы
@@ -369,5 +391,69 @@ class TableService
         }
         
         return $result;
+    }
+
+    /**
+     * Получить количество использований таблицы в UF-полях
+     *
+     * @param int $tableId ID таблицы
+     * @return int
+     */
+    public function getTableUsageCount(int $tableId): int
+    {
+        $count = 0;
+        
+        try {
+            // Поиск в пользовательских полях
+            $userFields = \CUserTypeEntity::GetList(
+                [],
+                ['USER_TYPE_ID' => 'grebion_table']
+            );
+            
+            while ($field = $userFields->Fetch()) {
+                // Получаем все значения этого поля
+                $entityId = $field['ENTITY_ID'];
+                $fieldName = $field['FIELD_NAME'];
+                
+                // Для разных типов сущностей используем разные методы поиска
+                if (strpos($entityId, 'HLBLOCK_') === 0) {
+                    // HL-блоки
+                    $hlblockId = (int)str_replace('HLBLOCK_', '', $entityId);
+                    $hlblock = \Bitrix\Highloadblock\HighloadBlockTable::getById($hlblockId)->fetch();
+                    
+                    if ($hlblock) {
+                        $entity = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($hlblock);
+                        $dataClass = $entity->getDataClass();
+                        
+                        $result = $dataClass::getList([
+                            'filter' => [$fieldName => $tableId],
+                            'select' => ['ID']
+                        ]);
+                        
+                        while ($result->fetch()) {
+                            $count++;
+                        }
+                    }
+                } elseif ($entityId === 'USER') {
+                    // Пользователи
+                    $users = \CUser::GetList(
+                        'ID',
+                        'ASC',
+                        [$fieldName => $tableId],
+                        ['FIELDS' => ['ID']]
+                    );
+                    
+                    while ($users->Fetch()) {
+                        $count++;
+                    }
+                }
+            }
+            
+        } catch (\Exception $e) {
+            // В случае ошибки возвращаем 1, чтобы не удалять таблицу
+            return 1;
+        }
+        
+        return $count;
     }
 }

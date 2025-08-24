@@ -1,0 +1,8 @@
+<?php
+
+$MESS['GREBION_TABLES_UF_TYPE_DESCRIPTION'] = 'Таблица';
+$MESS['GREBION_TABLES_UF_SELECT_TABLE'] = 'Выберите таблицу';
+$MESS['GREBION_TABLES_UF_SELECT_BUTTON'] = 'Выбрать';
+$MESS['GREBION_TABLES_UF_CLEAR_BUTTON'] = 'Очистить';
+$MESS['GREBION_TABLES_UF_TABLE_NOT_FOUND'] = 'Таблица не найдена';
+$MESS['GREBION_TABLES_UF_VALIDATION_TABLE_NOT_EXISTS'] = 'Указанная таблица не существует';

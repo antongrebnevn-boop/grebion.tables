@@ -170,11 +170,11 @@ class grebion_tables extends CModule
      */
     public function UnInstallFiles(): bool
     {
-        // Удаляем компоненты
-        DeleteDirFiles(
-            __DIR__ . '/components/',
-            $_SERVER['DOCUMENT_ROOT'] . '/bitrix/components/'
-        );
+        // Удаляем компоненты полностью
+        $componentPath = $_SERVER['DOCUMENT_ROOT'] . '/bitrix/components/grebion';
+        if (is_dir($componentPath)) {
+            $this->deleteDirectory($componentPath);
+        }
         
         // Удаляем административные файлы
         DeleteDirFiles(
@@ -184,12 +184,38 @@ class grebion_tables extends CModule
         
         return true;
     }
+    
+    /**
+     * Рекурсивное удаление директории
+     */
+    private function deleteDirectory(string $dir): bool
+    {
+        if (!is_dir($dir)) {
+            return false;
+        }
+        
+        $files = array_diff(scandir($dir), ['.', '..']);
+        
+        foreach ($files as $file) {
+            $path = $dir . '/' . $file;
+            if (is_dir($path)) {
+                $this->deleteDirectory($path);
+            } else {
+                unlink($path);
+            }
+        }
+        
+        return rmdir($dir);
+    }
 
     /**
      * Установка событий
      */
     public function InstallEvents(): bool
     {
+        // Регистрируем UF-тип "Таблица"
+        $this->InstallUserFields();
+        
         // Регистрируем обработчики событий если нужно
         return true;
     }
@@ -199,7 +225,44 @@ class grebion_tables extends CModule
      */
     public function UnInstallEvents(): bool
     {
+        // Удаляем UF-тип "Таблица"
+        $this->UnInstallUserFields();
+        
         // Удаляем обработчики событий если нужно
+        return true;
+    }
+
+    /**
+     * Установка пользовательских типов полей
+     */
+    private function InstallUserFields(): bool
+    {
+        // Регистрируем обработчик события для UF-типа
+        RegisterModuleDependences(
+            'main',
+            'OnUserTypeBuildList',
+            $this->MODULE_ID,
+            '\\Grebion\\Tables\\Uftype\\TableProperty',
+            'GetUserTypeDescription'
+        );
+        
+        return true;
+    }
+
+    /**
+     * Удаление пользовательских типов полей
+     */
+    private function UnInstallUserFields(): bool
+    {
+        // Удаляем обработчик события для UF-типа
+        UnRegisterModuleDependences(
+            'main',
+            'OnUserTypeBuildList',
+            $this->MODULE_ID,
+            '\Grebion\Tables\Uftype\TableProperty',
+            'GetUserTypeDescription'
+        );
+        
         return true;
     }
 

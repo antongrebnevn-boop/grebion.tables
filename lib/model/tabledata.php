@@ -10,7 +10,7 @@ use Bitrix\Main\ORM\Fields\StringField;
 use Bitrix\Main\ORM\Fields\TextField;
 use Bitrix\Main\ORM\Fields\DatetimeField;
 use Bitrix\Main\ORM\Fields\Relations\OneToMany;
-use Bitrix\Main\ORM\EventResult; 
+use Bitrix\Main\ORM\EventResult;
 use Grebion\Tables\Event\EventHandler;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\ORM\Query\Result;
