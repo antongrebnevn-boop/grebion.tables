@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Grebion\Tables\Service;
 
-use Grebion\Tables\Model\TableTable;
+use Grebion\Tables\Model\TableDataTable;
 use Grebion\Tables\Model\ColumnTable;
 use Grebion\Tables\Model\RowTable;
 use Grebion\Tables\Model\CellTable;
@@ -21,6 +21,12 @@ class TableManager
 {
     /**
      * Создать новую таблицу с колонками
+     *
+     * @param string $title Название таблицы
+     * @param string $ownerType Тип владельца (user, group, etc.)
+     * @param int $ownerId ID владельца
+     * @param array $columns Массив колонок для создания
+     * @return Result
      */
     public static function createTable(string $title, string $ownerType, int $ownerId, array $columns = []): Result
     {
@@ -28,13 +34,13 @@ class TableManager
         
         try {
             // Создаем таблицу
-            $tableResult = TableTable::createTable($ownerType, $ownerId, $title);
+            $tableResult = TableDataTable::createTable($ownerType, $ownerId, $title);
             if (!$tableResult->isSuccess()) {
                 $result->addErrors($tableResult->getErrors());
                 return $result;
             }
             
-            $tableId = $tableResult->getId();
+            $tableId = $tableResult->getData()['id'];
             
             // Создаем колонки если переданы
             if (!empty($columns)) {
@@ -68,7 +74,7 @@ class TableManager
      */
     public static function getTableInfo(int $tableId): ?array
     {
-        $table = TableTable::findById($tableId);
+        $table = TableDataTable::findById($tableId);
         if (!$table) {
             return null;
         }
@@ -104,7 +110,7 @@ class TableManager
                 return $result;
             }
             
-            $rowId = $rowResult->getId();
+            $rowId = $rowResult->getData()['id'];
             $result->setData(['row_id' => $rowId]);
             
         } catch (ArgumentException | SystemException $e) {
@@ -207,7 +213,7 @@ class TableManager
                 return $result;
             }
             
-            $result->setData(['column_id' => $columnResult->getId()]);
+            $result->setData(['column_id' => $columnResult->getData()['id']]);
             
         } catch (ArgumentException | SystemException $e) {
             $result->addError(new Error($e->getMessage()));
@@ -289,7 +295,7 @@ class TableManager
             }
             
             // Удаляем саму таблицу
-            $deleteResult = TableTable::deleteTable($tableId);
+            $deleteResult = TableDataTable::deleteTable($tableId);
             if (!$deleteResult->isSuccess()) {
                 $result->addErrors($deleteResult->getErrors());
             }

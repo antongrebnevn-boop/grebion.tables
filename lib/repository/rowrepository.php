@@ -121,7 +121,7 @@ class RowRepository extends AbstractRepository
                 $addResult = RowTable::add($rowData);
                 
                 if ($addResult->isSuccess()) {
-                    $insertedIds[] = $addResult->getId();
+                    $insertedIds[] = $addResult->getData()['id'];
                     $sortValue += 100; // Увеличиваем сортировку
                 } else {
                     throw new \Exception('Ошибка при добавлении строки: ' . implode(', ', $addResult->getErrorMessages()));

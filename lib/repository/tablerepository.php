@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Grebion\Tables\Repository;
 
-use Bitrix\Highloadblock\HighloadBlockTable;
+use Grebion\Tables\Model\TableDataTable;
 use Bitrix\Main\Application;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\SystemException;
@@ -20,7 +20,7 @@ class TableRepository extends AbstractRepository
      */
     protected function getTableClass(): string
     {
-        return HighloadBlockTable::class;
+        return TableDataTable::class;
     }
     
     /**
@@ -66,9 +66,9 @@ class TableRepository extends AbstractRepository
         $cache->startDataCache();
         
         /** @var Result $result */
-        $result = HighloadBlockTable::query()
+        $result = TableDataTable::query()
             ->setSelect(['*'])
-            ->setFilter(['NAME' => $name])
+            ->setFilter(['TITLE' => $name])
             ->setLimit(1)
             ->exec();
             

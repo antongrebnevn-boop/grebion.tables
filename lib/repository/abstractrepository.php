@@ -13,6 +13,7 @@ use Bitrix\Main\Error;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\SystemException;
+use Bitrix\Main\Loader; 
 
 /**
  * Абстрактный базовый класс для всех репозиториев
@@ -22,6 +23,11 @@ abstract class AbstractRepository implements RepositoryInterface
 {
     protected const CACHE_TTL = 3600; // 1 час
     protected const CACHE_DIR_PREFIX = '/grebion.tables/';
+    
+    public function __construct()
+    {
+        Loader::includeModule('highloadblock');
+    }
     
     /**
      * Получить класс ORM таблицы

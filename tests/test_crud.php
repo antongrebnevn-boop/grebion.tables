@@ -64,7 +64,7 @@ $createResult = safeExecute(function() use ($tableRepo, $testTableName, &$testTa
         throw new Exception('Не удалось создать HighloadBlock: ' . implode(', ', $result->getErrorMessages()));
     }
     
-    $testTableId = $result->getId();
+    $testTableId = $result->getData()['id'];
     return ['success' => true, 'id' => $testTableId];
 });
 

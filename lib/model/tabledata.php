@@ -10,7 +10,7 @@ use Bitrix\Main\ORM\Fields\StringField;
 use Bitrix\Main\ORM\Fields\TextField;
 use Bitrix\Main\ORM\Fields\DatetimeField;
 use Bitrix\Main\ORM\Fields\Relations\OneToMany;
-use Bitrix\Main\ORM\EventResult;
+use Bitrix\Main\ORM\EventResult; 
 use Grebion\Tables\Event\EventHandler;
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\ORM\Query\Result;
@@ -29,16 +29,16 @@ use Bitrix\Main\SystemException;
  * - CREATED_AT - дата создания
  * - UPDATED_AT - дата обновления
  */
-class TableTable extends DataManager
+class TableDataTable extends DataManager
 {
     /**
      * Возвращает название таблицы в БД
-     */
+     */ 
     public static function getTableName(): string
     {
         return 'grebion_tables';
     }
-
+    
     /**
      * Возвращает карту полей
      */
@@ -182,13 +182,5 @@ class TableTable extends DataManager
     public static function onAfterAdd(\Bitrix\Main\ORM\Event $event): EventResult
     {
         return EventHandler::onAfterTableAdd($event);
-    }
-
-    /**
-     * Обработчик события перед удалением
-     */
-    public static function onBeforeDelete(\Bitrix\Main\ORM\Event $event): EventResult
-    {
-        return EventHandler::onBeforeTableDelete($event);
     }
 }

@@ -53,8 +53,11 @@ class ColumnTable extends DataManager
     public const TYPE_JSON = 'json';
 
      private static array $typeAliases = [
-         self::TYPE_STRING  => self::TYPE_TEXT,
-         self::TYPE_INTEGER => self::TYPE_NUMBER,
+         'string'  => self::TYPE_TEXT,
+         'integer' => self::TYPE_NUMBER,
+         'int'     => self::TYPE_NUMBER,
+         'double'  => self::TYPE_FLOAT,
+         'bool'    => self::TYPE_BOOLEAN,
      ];
 
      private static function resolveType(string $type): string
@@ -127,7 +130,7 @@ class ColumnTable extends DataManager
             ]),
             
             // Связь с таблицей
-            new Reference('TABLE', TableTable::class, Join::on('this.TABLE_ID', 'ref.ID')),
+            new Reference('TABLE', TableDataTable::class, Join::on('this.TABLE_ID', 'ref.ID')),
         ];
     }
 
@@ -232,7 +235,7 @@ class ColumnTable extends DataManager
      */
     public static function getAvailableTypes(): array
     {
-        return [
+        $types = [
             self::TYPE_TEXT => 'Текст',
             self::TYPE_NUMBER => 'Число',
             self::TYPE_DATE => 'Дата',
@@ -246,9 +249,16 @@ class ColumnTable extends DataManager
             self::TYPE_PHONE => 'Телефон',
             self::TYPE_FLOAT => 'Число (float)',
             self::TYPE_JSON => 'JSON',
-            self::TYPE_STRING => 'Строка',
-            self::TYPE_INTEGER => 'Число (int)',
         ];
+        
+        // Добавляем алиасы для валидации
+        foreach (self::$typeAliases as $alias => $realType) {
+            if (isset($types[$realType])) {
+                $types[$alias] = $types[$realType];
+            }
+        }
+        
+        return $types;
     }
 
     /**
@@ -274,12 +284,13 @@ class ColumnTable extends DataManager
     {
         $result = new \Bitrix\Main\ORM\EventResult();
         $fields = $event->getParameter('fields');
-         // Нормализация алиасов типов
-         if (!empty($fields['TYPE'])) {
-         $fields['TYPE'] = static::resolveType((string)$fields['TYPE']);
-         }
+        
+        // Нормализация алиасов типов (должна быть перед валидацией)
+        if (!empty($fields['TYPE'])) {
+            $fields['TYPE'] = static::resolveType((string)$fields['TYPE']);
+        }
          
-         // Валидация обязательных полей
+        // Валидация обязательных полей
         if (empty($fields['TABLE_ID'])) {
             $result->addError(new EntityError('Не указан ID таблицы'));
         }
@@ -305,6 +316,8 @@ class ColumnTable extends DataManager
             $result->addError(new EntityError('Недопустимый тип колонки'));
         }
         
+        $result->modifyFields($fields);
+        
         return $result;
     }
 
@@ -320,7 +333,7 @@ class ColumnTable extends DataManager
         // Автоматически обновляем дату изменения
         $fields['UPDATED_AT'] = new DateTime();
         
-        // Нормализация алиасов типов
+        // Нормализация алиасов типов (должна быть перед валидацией)
         if (!empty($fields['TYPE'])) {
             $fields['TYPE'] = static::resolveType((string)$fields['TYPE']);
         }

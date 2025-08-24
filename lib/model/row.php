@@ -77,7 +77,7 @@ class RowTable extends DataManager
             ]),
             
             // Связь с таблицей
-            new Reference('TABLE', TableTable::class, Join::on('this.TABLE_ID', 'ref.ID')),
+            new Reference('TABLE', TableDataTable::class, Join::on('this.TABLE_ID', 'ref.ID')),
             
             // Связь с ячейками (если используется отдельная модель Cell)
             new OneToMany('CELLS', CellTable::class, 'ROW'),

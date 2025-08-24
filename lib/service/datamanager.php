@@ -20,6 +20,10 @@ class DataManager
 {
     /**
      * Валидировать данные строки согласно типам колонок
+     *
+     * @param int $tableId ID таблицы
+     * @param array $data Данные для валидации
+     * @return Result
      */
     public static function validateRowData(int $tableId, array $data): Result
     {

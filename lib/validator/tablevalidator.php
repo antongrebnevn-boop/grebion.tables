@@ -5,6 +5,7 @@ namespace Grebion\Tables\Validator;
 use Bitrix\Main\Result;
 use Bitrix\Main\Error;
 use Bitrix\Main\Localization\Loc;
+use Grebion\Tables\Model\ColumnTable;
 
 Loc::loadMessages(__FILE__);
 
@@ -50,7 +51,7 @@ class TableValidator
             $result->addError(new Error(Loc::getMessage('GREBION_TABLES_VALIDATOR_COLUMN_TYPE_REQUIRED')));
         }
 
-        $allowedTypes = ['string', 'integer', 'double', 'datetime', 'boolean', 'text'];
+        $allowedTypes = array_keys(ColumnTable::getAvailableTypes());
         if (!empty($data['TYPE']) && !in_array($data['TYPE'], $allowedTypes)) {
             $result->addError(new Error(Loc::getMessage('GREBION_TABLES_VALIDATOR_COLUMN_TYPE_INVALID')));
         }
