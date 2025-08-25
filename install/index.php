@@ -246,6 +246,15 @@ class grebion_tables extends CModule
             'GetUserTypeDescription'
         );
         
+        // Регистрируем тип свойства инфоблока
+        RegisterModuleDependences(
+            'iblock',
+            'OnIBlockPropertyBuildList',
+            $this->MODULE_ID,
+            '\\Grebion\\Tables\\IblockProperty\\TableProperty',
+            'GetUserTypeDescription'
+        );
+        
         return true;
     }
 
@@ -260,6 +269,15 @@ class grebion_tables extends CModule
             'OnUserTypeBuildList',
             $this->MODULE_ID,
             '\Grebion\Tables\Uftype\TableProperty',
+            'GetUserTypeDescription'
+        );
+        
+        // Удаляем тип свойства инфоблока
+        UnRegisterModuleDependences(
+            'iblock',
+            'OnIBlockPropertyBuildList',
+            $this->MODULE_ID,
+            '\\Grebion\\Tables\\IblockProperty\\TableProperty',
             'GetUserTypeDescription'
         );
         

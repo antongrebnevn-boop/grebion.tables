@@ -137,7 +137,8 @@ abstract class AbstractRepository implements RepositoryInterface
         $cacheDir = $this->getCacheDir();
         
         if ($cache->initCache(static::CACHE_TTL, $cacheKey, $cacheDir)) {
-            return $cache->getVars()['item'];
+            $cachedItem = $cache->getVars()['item'];
+            return $cachedItem !== false ? $cachedItem : null;
         }
         
         $cache->startDataCache();
@@ -152,7 +153,7 @@ abstract class AbstractRepository implements RepositoryInterface
         
         $cache->endDataCache(['item' => $item]);
         
-        return $item ?: null;
+        return $item !== false ? $item : null;
     }
     
     /**
