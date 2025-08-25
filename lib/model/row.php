@@ -12,7 +12,7 @@ use Bitrix\Main\ORM\Fields\Relations\Reference;
 use Bitrix\Main\ORM\Fields\Relations\OneToMany;
 use Bitrix\Main\ORM\Query\Join;
 use Bitrix\Main\ORM\EventResult;
-use Grebion\Tables\Event\EventHandler;
+
 use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\ORM\Query\Result;
 use Bitrix\Main\ArgumentException;
@@ -272,6 +272,22 @@ class RowTable extends DataManager
      */
     public static function onBeforeAdd(\Bitrix\Main\ORM\Event $event): EventResult
     {
-        return EventHandler::onBeforeRowAdd($event);
+        $result = new EventResult(EventResult::SUCCESS);
+        $fields = $event->getParameter('fields');
+
+        // Автоматическая установка порядка сортировки
+        if (empty($fields['SORT']) && !empty($fields['TABLE_ID'])) {
+            $maxSort = static::getList([
+                'select' => ['SORT'],
+                'filter' => ['TABLE_ID' => $fields['TABLE_ID']],
+                'order' => ['SORT' => 'DESC'],
+                'limit' => 1
+            ])->fetch();
+            
+            $fields['SORT'] = ($maxSort['SORT'] ?? 0) + 100;
+            $result->modifyFields($fields);
+        }
+
+        return $result;
     }
 }

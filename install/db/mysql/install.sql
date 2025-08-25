@@ -1,17 +1,32 @@
 -- Создание таблиц для модуля Grebion.Tables NextGen
 
--- Основная таблица для хранения таблиц
+-- Таблица для хранения схем таблиц
+CREATE TABLE IF NOT EXISTS `grebion_table_schemas` (
+    `ID` int(11) NOT NULL AUTO_INCREMENT,
+    `NAME` varchar(255) NOT NULL COMMENT 'Название схемы',
+    `DESCRIPTION` text COMMENT 'Описание схемы',
+    `SCHEMA` longtext NOT NULL COMMENT 'JSON-схема колонок',
+    `CREATED_AT` datetime NOT NULL COMMENT 'Дата создания',
+    `UPDATED_AT` datetime NOT NULL COMMENT 'Дата обновления',
+    PRIMARY KEY (`ID`),
+    UNIQUE KEY `UX_GREBION_SCHEMAS_NAME` (`NAME`),
+    KEY `IX_GREBION_SCHEMAS_CREATED` (`CREATED_AT`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Схемы таблиц';
+
+-- Основная таблица для хранения данных таблиц
 CREATE TABLE IF NOT EXISTS `grebion_tables` (
     `ID` int(11) NOT NULL AUTO_INCREMENT,
+    `SCHEMA_ID` int(11) NOT NULL COMMENT 'ID схемы таблицы',
     `OWNER_TYPE` varchar(50) NOT NULL COMMENT 'Тип владельца (USER, IBLOCK_ELEMENT, etc.)',
     `OWNER_ID` int(11) NOT NULL COMMENT 'ID владельца',
     `TITLE` varchar(255) DEFAULT NULL COMMENT 'Название таблицы',
-    `DATA` longtext COMMENT 'JSON-данные таблицы',
     `CREATED_AT` datetime NOT NULL COMMENT 'Дата создания',
     `UPDATED_AT` datetime DEFAULT NULL COMMENT 'Дата обновления',
     PRIMARY KEY (`ID`),
+    KEY `IX_GREBION_TABLES_SCHEMA` (`SCHEMA_ID`),
     KEY `IX_GREBION_TABLES_OWNER` (`OWNER_TYPE`, `OWNER_ID`),
-    KEY `IX_GREBION_TABLES_CREATED` (`CREATED_AT`)
+    KEY `IX_GREBION_TABLES_CREATED` (`CREATED_AT`),
+    CONSTRAINT `FK_GREBION_TABLES_SCHEMA` FOREIGN KEY (`SCHEMA_ID`) REFERENCES `grebion_table_schemas` (`ID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Таблицы модуля Grebion.Tables';
 
 -- Таблица для хранения колонок

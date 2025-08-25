@@ -5,6 +5,7 @@ namespace Grebion\Tables\IblockProperty;
 use Bitrix\Main\Localization\Loc;
 use Grebion\Tables\Service\TableService;
 use Grebion\Tables\Repository\TableRepository;
+use Grebion\Tables\Model\TableDataTable;
 
 Loc::loadMessages(__FILE__);
 
@@ -53,18 +54,22 @@ class TableProperty
     {
         global $APPLICATION;
         
-        ob_start();
-        $APPLICATION->IncludeComponent(
-            self::RENDER_COMPONENT,
-            '.default',
-            [
-                'property' => $arProperty,
-                'value' => $value,
-                'controlName' => $strHTMLControlName
-            ],
-            false
-        );
-        return ob_get_clean() ?: self::GetSimpleSelectHTML($arProperty, $value, $strHTMLControlName);
+        if (\CModule::IncludeModule('grebion.tables')) {
+            ob_start();
+            $APPLICATION->IncludeComponent(
+                self::RENDER_COMPONENT,
+                '',
+                [
+                    'PROPERTY' => $arProperty,
+                    'VALUE' => $value,
+                    'HTML_CONTROL_NAME' => $strHTMLControlName,
+                ],
+                false
+            );
+            return ob_get_clean();
+        }
+        
+        return self::GetSimpleSelectHTML($arProperty, $value, $strHTMLControlName);
     }
     
     /**
@@ -132,19 +137,22 @@ class TableProperty
     {
         global $APPLICATION;
         
-        ob_start();
-        $APPLICATION->IncludeComponent(
-            self::RENDER_COMPONENT,
-            '',
-            [
-                'property' => $arProperty,
-                'value' => $value,
-                'controlName' => $strHTMLControlName,
-                'mode' => 'edit'
-            ],
-            false
-        );
-        return ob_get_clean() ?: '';
+        if (\CModule::IncludeModule('grebion.tables')) {
+            ob_start();
+            $APPLICATION->IncludeComponent(
+                self::RENDER_COMPONENT,
+                '',
+                [
+                    'PROPERTY' => $arProperty,
+                    'VALUE' => $value,
+                    'HTML_CONTROL_NAME' => $strHTMLControlName,
+                ],
+                false
+            );
+            return ob_get_clean();
+        }
+        
+        return self::GetSimpleSelectHTML($arProperty, $value, $strHTMLControlName);
     }
 
     /**
@@ -204,21 +212,28 @@ class TableProperty
      * @param array $arPropertyFields
      * @return string
      */
-    public static function GetSettingsHTML(array $arProperty, array $strHTMLControlName, array &$arPropertyFields): string
+    public static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields): string
     {
+        global $APPLICATION;
+        
         $arPropertyFields = [
             'HIDE' => ['ROW_COUNT', 'COL_COUNT', 'MULTIPLE_CNT']
         ];
         
-        $html = '<tr>';
-        $html .= '<td>' . Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_SETTINGS_DEFAULT') . ':</td>';
-        $html .= '<td>';
-        $html .= '<input type="text" name="' . htmlspecialcharsbx($strHTMLControlName['DEFAULT_VALUE']) . '" ';
-        $html .= 'value="' . htmlspecialcharsbx($arProperty['DEFAULT_VALUE'] ?? '') . '" size="30" />';
-        $html .= '</td>';
-        $html .= '</tr>';
+        ob_start();
+        $APPLICATION->IncludeComponent(
+            'grebion:table.settings',
+            '',
+            [
+                'PROPERTY_CODE' => $arProperty['CODE'] ?? '',
+                'IBLOCK_ID' => $arProperty['IBLOCK_ID'] ?? 0,
+                'PROPERTY' => $arProperty,
+                'HTML_CONTROL' => $strHTMLControlName,
+            ],
+            false
+        );
         
-        return $html;
+        return ob_get_clean() ?: '';
     }
 
     /**
@@ -284,6 +299,7 @@ class TableProperty
     public static function ConvertToDB(array $arProperty, array $value): array
     {
         if (!empty($value['VALUE'])) {
+            // Сохраняем только ID таблицы
             $value['VALUE'] = (int)$value['VALUE'];
         }
         
@@ -291,7 +307,7 @@ class TableProperty
     }
 
     /**
-     * Конвертирует значение при получении из БД
+     * Конвертирует значение из БД для отображения
      *
      * @param array $arProperty
      * @param array $value
@@ -300,7 +316,15 @@ class TableProperty
     public static function ConvertFromDB(array $arProperty, array $value): array
     {
         if (!empty($value['VALUE'])) {
-            $value['VALUE'] = (int)$value['VALUE'];
+            $tableId = (int)$value['VALUE'];
+            if ($tableId > 0) {
+                // Проверяем существование таблицы
+                $tableRepository = new TableRepository();
+                $table = $tableRepository->getById($tableId);
+                if ($table) {
+                    $value['VALUE'] = $tableId;
+                }
+            }
         }
         
         return $value;

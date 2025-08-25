@@ -43,24 +43,20 @@ class TableProperty extends BaseType
      */
     public static function getEditFormHtml(array $userField, ?array $additionalParameters = null): string
     {
-        $value = $additionalParameters['VALUE'] ?? '';
-        $fieldName = $additionalParameters['NAME'] ?? $userField['FIELD_NAME'];
+        global $APPLICATION;
         
-        // Получаем список доступных таблиц
-        $tableRepository = new TableRepository();
-        $tables = $tableRepository->getList();
+        ob_start();
+        $APPLICATION->IncludeComponent(
+            'grebion:table.editor',
+            '.default',
+            [
+                'userField' => $userField,
+                'additionalParameters' => $additionalParameters
+            ],
+            false
+        );
         
-        $html = '<select name="' . htmlspecialchars($fieldName) . '" class="grebion-table-selector">';
-        $html .= '<option value="">' . Loc::getMessage('GREBION_TABLES_UF_SELECT_TABLE') . '</option>';
-        
-        foreach ($tables as $table) {
-            $selected = ($value == $table['ID']) ? ' selected' : '';
-            $html .= '<option value="' . $table['ID'] . '"' . $selected . '>' . htmlspecialchars($table['NAME']) . '</option>';
-        }
-        
-        $html .= '</select>';
-        
-        return $html;
+        return ob_get_clean() ?: '';
     }
 
     /**
@@ -168,7 +164,16 @@ class TableProperty extends BaseType
      */
     public static function prepareSave(array $userField, $value)
     {
-        return empty($value) ? null : (int)$value;
+        if (empty($value)) {
+            return null;
+        }
+        
+        // Если значение - массив с данными таблицы, сохраняем как JSON
+        if (is_array($value) && isset($value['schema'])) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+        
+        return (string)$value;
     }
 
     /**
@@ -180,7 +185,17 @@ class TableProperty extends BaseType
      */
     public static function prepareView(array $userField, $value)
     {
-        return empty($value) ? null : (int)$value;
+        if (empty($value)) {
+            return null;
+        }
+        
+        // Пытаемся декодировать JSON
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+        
+        return (string)$value;
     }
 
     /**
@@ -250,7 +265,7 @@ class TableProperty extends BaseType
      */
     public static function getDbColumnType(): string
     {
-        return 'int';
+        return 'text';
     }
 
     /**

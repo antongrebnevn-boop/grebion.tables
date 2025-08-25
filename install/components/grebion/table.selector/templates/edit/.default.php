@@ -49,7 +49,7 @@ $tables = $tableRepository->getList();
             </select>
         </span>
     <?php endforeach; ?>
- 
+
     <?php if (($userField['MULTIPLE'] ?? 'N') === 'Y' && ($additionalParameters['SHOW_BUTTON'] ?? 'Y') !== 'N'): ?>
         <?= $component->getHtmlBuilder()->getCloneButton($fieldName) ?>
     <?php endif; ?>

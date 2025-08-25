@@ -316,6 +316,23 @@ class ColumnTable extends DataManager
             $result->addError(new EntityError('Недопустимый тип колонки'));
         }
         
+        // Автоматическая установка порядка сортировки
+        if (empty($fields['SORT']) && !empty($fields['TABLE_ID'])) {
+            $maxSort = static::getList([
+                'select' => ['SORT'],
+                'filter' => ['TABLE_ID' => $fields['TABLE_ID']],
+                'order' => ['SORT' => 'DESC'],
+                'limit' => 1
+            ])->fetch();
+            
+            $fields['SORT'] = ($maxSort['SORT'] ?? 0) + 100;
+        }
+
+        // Автоматическое создание символьного кода
+        if (empty($fields['CODE']) && !empty($fields['TITLE'])) {
+            $fields['CODE'] = self::generateCode($fields['TITLE']);
+        }
+        
         $result->modifyFields($fields);
         
         return $result;
@@ -357,5 +374,31 @@ class ColumnTable extends DataManager
         $result->modifyFields($fields);
         
         return $result;
-    } 
+    }
+
+    /**
+     * Генерация символьного кода из названия
+     */
+    private static function generateCode(string $name): string
+    {
+        $code = mb_strtolower($name);
+        $code = preg_replace('/[^a-z0-9а-я]/ui', '_', $code);
+        $code = preg_replace('/_{2,}/', '_', $code);
+        $code = trim($code, '_');
+        
+        // Транслитерация
+        $translitMap = [
+            'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
+            'е' => 'e', 'ё' => 'yo', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
+            'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
+            'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
+            'у' => 'u', 'ф' => 'f', 'х' => 'h', 'ц' => 'ts', 'ч' => 'ch',
+            'ш' => 'sh', 'щ' => 'sch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
+            'э' => 'e', 'ю' => 'yu', 'я' => 'ya'
+        ];
+        
+        $code = strtr($code, $translitMap);
+        
+        return mb_substr($code, 0, 50);
+    }
 }
