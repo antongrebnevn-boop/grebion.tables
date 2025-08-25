@@ -15,7 +15,7 @@ Loc::loadMessages(__FILE__);
 class TableProperty
 {
     public const USER_TYPE = 'grebion_table';
-    public const RENDER_COMPONENT = 'grebion:table.selector';
+    public const RENDER_COMPONENT = 'grebion:table.settings';
 
     /**
      * Возвращает описание пользовательского типа свойства
@@ -53,7 +53,7 @@ class TableProperty
     public static function GetPropertyFieldHtml(array $arProperty, array $value, array $strHTMLControlName): string
     {
         global $APPLICATION;
-        
+
         if (\CModule::IncludeModule('grebion.tables')) {
             ob_start();
             $APPLICATION->IncludeComponent(
@@ -68,10 +68,10 @@ class TableProperty
             );
             return ob_get_clean();
         }
-        
+
         return self::GetSimpleSelectHTML($arProperty, $value, $strHTMLControlName);
     }
-    
+
     /**
      * Простой HTML селект как fallback
      *
@@ -212,28 +212,9 @@ class TableProperty
      * @param array $arPropertyFields
      * @return string
      */
-    public static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields): string
+    public static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields)
     {
-        global $APPLICATION;
-        
-        $arPropertyFields = [
-            'HIDE' => ['ROW_COUNT', 'COL_COUNT', 'MULTIPLE_CNT']
-        ];
-        
-        ob_start();
-        $APPLICATION->IncludeComponent(
-            'grebion:table.settings',
-            '',
-            [
-                'PROPERTY_CODE' => $arProperty['CODE'] ?? '',
-                'IBLOCK_ID' => $arProperty['IBLOCK_ID'] ?? 0,
-                'PROPERTY' => $arProperty,
-                'HTML_CONTROL' => $strHTMLControlName,
-            ],
-            false
-        );
-        
-        return ob_get_clean() ?: '';
+        return;
     }
 
     /**
