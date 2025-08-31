@@ -59,6 +59,14 @@ $currentSchema = $arResult['CURRENT_SCHEMA'];
         padding-top: 15px;
     }
 
+    .grebion-column-fields .form-control {
+        width: auto;
+    }
+
+    .grebion-column-fields .form-control.column-sort {
+        width: 45px;
+    }
+
     .grebion-columns-header {
         display: flex;
         justify-content: space-between;
@@ -121,7 +129,7 @@ $currentSchema = $arResult['CURRENT_SCHEMA'];
     }
 
     .form-control {
-        width: 100%;
+        width: 98%;
         padding: 5px 8px;
         border: 1px solid #ccc;
         border-radius: 3px;
