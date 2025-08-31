@@ -5,253 +5,208 @@ if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) {
 }
 
 use Bitrix\Main\Loader;
-use Bitrix\Main\Web\Json;
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Engine\Contract\Controllerable;
 use Bitrix\Main\Engine\ActionFilter\Csrf;
+use Bitrix\Main\Engine\ActionFilter\Authentication;
 use Bitrix\Main\Engine\Response\AjaxJson;
 use Bitrix\Main\Error;
+use Bitrix\Main\ErrorCollection;
 use Grebion\Tables\Model\TableSchemaTable;
 use Grebion\Tables\Model\ColumnTable;
+use CBitrixComponent;
+
+Loc::loadMessages(__FILE__);
 
 /**
- * Компонент для настройки схемы таблицы
+ * Компонент настройки схемы таблицы для пользовательского свойства «Таблица».
+ *
+ * Параметры:
+ *  - SCHEMA_ID  (int)    ID выбранной схемы (0, если не выбрана)
+ *  - INPUT_NAME (string) Имя hidden-поля для сохранения выбранного SCHEMA_ID
  */
 class TableSettingsComponent extends CBitrixComponent implements Controllerable
 {
-    public function executeComponent()
+    public function executeComponent(): void
     {
         if (!Loader::includeModule('grebion.tables')) {
+            ShowError('Модуль grebion.tables не установлен');
             return;
         }
-        
+
         $this->prepareResult();
         $this->includeComponentTemplate();
     }
 
-    protected function prepareResult()
+    protected function prepareResult(): void
     {
-        // Получаем параметры из свойства инфоблока
-        $property = $this->arParams['PROPERTY'] ?? [];
-        $value = $this->arParams['VALUE'] ?? [];
-        $htmlControlName = $this->arParams['HTML_CONTROL_NAME'] ?? [];
-        
-        // Получаем доступные типы колонок
-        $this->arResult['COLUMN_TYPES'] = ColumnTable::getAvailableTypes();
-        
-        // Получаем текущую схему из значения свойства
-        $currentSchemaId = 0;
-        $currentSchema = [];
-        
-        if (!empty($value['VALUE'])) {
-            $currentSchemaId = (int)$value['VALUE'];
-            if ($currentSchemaId > 0) {
-                $schemaData = TableSchemaTable::getById($currentSchemaId)->fetch();
-                if ($schemaData) {
-                    $schemaJson = Json::decode($schemaData['SCHEMA']);
-                    $currentSchema = $schemaJson['columns'] ?? $schemaJson ?? [];
-                }
+        $schemaId                = (int)($this->arParams['SCHEMA_ID'] ?? 0);
+        $this->arResult['SCHEMA_ID']  = $schemaId;
+        $this->arResult['INPUT_NAME'] = $this->arParams['INPUT_NAME'];
+
+        // Список существующих схем
+        $this->arResult['SCHEMAS'] = TableSchemaTable::getList([
+            'select' => ['ID', 'NAME', 'DESCRIPTION'],
+            'order'  => ['NAME' => 'ASC'],
+        ])->fetchAll();
+
+        // Проверяем существование схемы (для отображения предупреждения)
+        $this->arResult['CURRENT_SCHEMA'] = null;
+        if ($schemaId > 0) {
+            $schemaData = TableSchemaTable::getById($schemaId)->fetch();
+            if ($schemaData) {
+                // Схема существует, но данные будут загружены через AJAX
+                $this->arResult['CURRENT_SCHEMA'] = ['EXISTS' => true];
+            } else {
+                // Схема не найдена - сбрасываем ID и работаем как с пустой настройкой
+                $schemaId = 0;
+                $this->arResult['SCHEMA_ID'] = 0;
             }
         }
-        
-        // Получаем список доступных схем
-        $availableSchemas = TableSchemaTable::getList([
-            'select' => ['ID', 'NAME', 'DESCRIPTION', 'CREATED_AT'],
-            'order' => ['CREATED_AT' => 'DESC']
-        ])->fetchAll();
-        
-        $this->arResult['CURRENT_SCHEMA'] = $currentSchema;
-        $this->arResult['CURRENT_SCHEMA_ID'] = $currentSchemaId;
-        $this->arResult['AVAILABLE_SCHEMAS'] = $availableSchemas;
-        $this->arResult['PROPERTY'] = $property;
-        $this->arResult['VALUE'] = $value;
-        $this->arResult['HTML_CONTROL_NAME'] = $htmlControlName;
-        $this->arResult['COMPONENT_ID'] = 'grebion_table_settings_' . md5(serialize($htmlControlName));
-    }
-    
-    /**
-     * Рендерит элемент колонки для шаблона
-     */
-    public function renderColumnItem($componentId, $index, $column, $columnTypes)
-    {
-        ob_start();
-        ?>
-        <div class="grebion-column-item" data-index="<?= $index ?>">
-            <div class="grebion-column-header">
-                <div class="grebion-column-drag">
-                    <span class="ui-icon-set --move"></span>
-                </div>
-                <div class="grebion-column-title">
-                    <strong><?= htmlspecialchars($column['title'] ?? 'Колонка ' . ($index + 1)) ?></strong>
-                    <span class="grebion-column-type-badge"><?= htmlspecialchars($columnTypes[$column['type']] ?? $column['type']) ?></span>
-                </div>
-                <div class="grebion-column-actions">
-                    <button type="button" 
-                            class="ui-btn ui-btn-sm ui-btn-light ui-btn-icon-edit"
-                            data-component-id="<?= htmlspecialchars($componentId) ?>"
-                            data-action="toggle-column"
-                            data-index="<?= $index ?>"
-                            title="Редактировать">
-                    </button>
-                    <button type="button" 
-                            class="ui-btn ui-btn-sm ui-btn-danger ui-btn-icon-remove"
-                            data-component-id="<?= htmlspecialchars($componentId) ?>"
-                            data-action="remove-column"
-                            data-index="<?= $index ?>"
-                            title="Удалить">
-                    </button>
-                </div>
-            </div>
-            
-            <div class="grebion-column-content" style="display: none;">
-                <div class="ui-form-row-group">
-                    <div class="ui-form-row">
-                        <div class="ui-form-label">
-                            <div class="ui-form-label-text">Код колонки:</div>
-                        </div>
-                        <div class="ui-form-content">
-                            <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
-                                <input type="text" 
-                                       class="ui-ctl-element column-code" 
-                                       value="<?= htmlspecialchars($column['code'] ?? '') ?>"
-                                       placeholder="column_code"
-                                       required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="ui-form-row">
-                        <div class="ui-form-label">
-                            <div class="ui-form-label-text">Название:</div>
-                        </div>
-                        <div class="ui-form-content">
-                            <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
-                                <input type="text" 
-                                       class="ui-ctl-element column-title" 
-                                       value="<?= htmlspecialchars($column['title'] ?? '') ?>"
-                                       placeholder="Название колонки"
-                                       required>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="ui-form-row">
-                        <div class="ui-form-label">
-                            <div class="ui-form-label-text">Тип:</div>
-                        </div>
-                        <div class="ui-form-content">
-                            <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
-                                <div class="ui-ctl-after ui-ctl-icon-angle"></div>
-                                <select class="ui-ctl-element column-type" 
-                                        data-component-id="<?= htmlspecialchars($componentId) ?>"
-                                        data-action="type-change"
-                                        data-index="<?= $index ?>">
-                                    <?php foreach ($columnTypes as $typeCode => $typeName): ?>
-                                        <option value="<?= htmlspecialchars($typeCode) ?>"
-                                                <?= ($column['type'] ?? '') === $typeCode ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($typeName) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="ui-form-row">
-                        <div class="ui-form-label">
-                            <div class="ui-form-label-text">Сортировка:</div>
-                        </div>
-                        <div class="ui-form-content">
-                            <div class="ui-ctl ui-ctl-textbox">
-                                <input type="number" 
-                                       class="ui-ctl-element column-sort" 
-                                       value="<?= (int)($column['sort'] ?? ($index + 1) * 100) ?>"
-                                       min="0">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="grebion-column-type-settings" id="type-settings-<?= htmlspecialchars($componentId) ?>-<?= $index ?>">
-                        <?php if (in_array($column['type'] ?? '', ['select', 'multiselect'])): ?>
-                            <div class="ui-form-row">
-                                <div class="ui-form-label">
-                                    <div class="ui-form-label-text">Варианты (по одному на строку):</div>
-                                </div>
-                                <div class="ui-form-content">
-                                    <div class="ui-ctl ui-ctl-textarea ui-ctl-w100">
-                                        <textarea class="ui-ctl-element column-options" 
-                                                  rows="3"
-                                                  placeholder="Вариант 1\nВариант 2\nВариант 3"><?= htmlspecialchars(implode("\n", $column['options'] ?? [])) ?></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php
-        return ob_get_clean();
+
+        // Типы колонок
+        $this->arResult['COLUMN_TYPES'] = [
+            ColumnTable::TYPE_TEXT        => Loc::getMessage('GREBION_TABLE_COL_TEXT'),
+            ColumnTable::TYPE_NUMBER      => Loc::getMessage('GREBION_TABLE_COL_NUMBER'),
+            ColumnTable::TYPE_DATE        => Loc::getMessage('GREBION_TABLE_COL_DATE'),
+            ColumnTable::TYPE_DATETIME    => Loc::getMessage('GREBION_TABLE_COL_DATETIME'),
+            ColumnTable::TYPE_BOOLEAN     => Loc::getMessage('GREBION_TABLE_COL_BOOL'),
+            ColumnTable::TYPE_FILE        => Loc::getMessage('GREBION_TABLE_COL_FILE'),
+            ColumnTable::TYPE_SELECT      => Loc::getMessage('GREBION_TABLE_COL_SELECT'),
+            ColumnTable::TYPE_MULTISELECT => Loc::getMessage('GREBION_TABLE_COL_MULTISELECT'),
+            ColumnTable::TYPE_EMAIL       => Loc::getMessage('GREBION_TABLE_COL_EMAIL'),
+            ColumnTable::TYPE_URL         => Loc::getMessage('GREBION_TABLE_COL_URL'),
+            ColumnTable::TYPE_PHONE       => Loc::getMessage('GREBION_TABLE_COL_PHONE'),
+        ];
     }
 
-    /**
-     * Конфигурация экшенов
-     */
-    public function configureActions()
+    /* Controllerable */
+
+    public function configureActions(): array
     {
         return [
             'saveSchema' => [
                 'prefilters' => [
-                    new Csrf()
-                ]
-            ]
+                    new Csrf(),
+                    new Authentication(),
+                ],
+            ],
+            'loadSchema' => [
+                'prefilters' => [
+                    new Authentication(),
+                ],
+            ],
         ];
     }
 
-
-
     /**
-     * Экшен для сохранения схемы
+     * Сохраняет новую схему и возвращает её ID.
+     *
+     * @param string $schemaName        Название схемы
+     * @param array  $columns           Массив колонок
+     * @param string $schemaDescription Описание (необязательно)
+     * @return AjaxJson
      */
-    public function saveSchemaAction($schemaData, $schemaName, $schemaDescription = '')
+    public function saveSchemaAction(string $schemaName, array $columns, string $schemaDescription = '', int $schemaId = 0): AjaxJson
     {
+        // Проверка подключения модуля
         if (!Loader::includeModule('grebion.tables')) {
-            return new AjaxJson(null, [new Error('Модуль grebion.tables не подключен')]);
+            return AjaxJson::createError(new ErrorCollection([new Error('MODULE_NOT_LOADED')]));
         }
 
-        if (empty($schemaName)) {
-            return new AjaxJson(null, [new Error('Название схемы не может быть пустым')]);
+        if ($schemaName === '') {
+            return AjaxJson::createError(new ErrorCollection([new Error('EMPTY_NAME')]));
+        }
+        if (empty($columns)) {
+            return AjaxJson::createError(new ErrorCollection([new Error('EMPTY_COLUMNS')]));
         }
 
-        if (empty($schemaData)) {
-            return new AjaxJson(null, [new Error('Данные схемы не могут быть пустыми')]);
-        }
-
-        try {
-            $schema = Json::decode($schemaData);
-            if (!is_array($schema) || empty($schema['columns'])) {
-                return new AjaxJson(null, [new Error('Некорректный формат данных схемы')]);
+        // Валидация на дублирующиеся коды и названия колонок
+        $codes = [];
+        $titles = [];
+        foreach ($columns as $column) {
+            $code = trim($column['code'] ?? '');
+            $title = trim($column['title'] ?? '');
+            
+            // Проверка базовой структуры колонки
+            if (!TableSchemaTable::validateColumn($column)) {
+                return AjaxJson::createError(new ErrorCollection([new Error('INVALID_COLUMN')]));
             }
-        } catch (\Exception $e) {
-            return new AjaxJson(null, [new Error('Ошибка парсинга JSON: ' . $e->getMessage())]);
+            
+            // Проверка на дублирующиеся коды
+            if (in_array($code, $codes)) {
+                return AjaxJson::createError(new ErrorCollection([new Error('DUPLICATE_CODE', null, ['CODE' => $code])]));
+            }
+            $codes[] = $code;
+            
+            // Проверка на дублирующиеся названия
+            if (in_array($title, $titles)) {
+                return AjaxJson::createError(new ErrorCollection([new Error('DUPLICATE_TITLE', null, ['TITLE' => $title])]));
+            }
+            $titles[] = $title;
         }
 
-        $result = TableSchemaTable::add([
-            'NAME' => $schemaName,
+        $schemaData = [
+            'NAME'        => $schemaName,
             'DESCRIPTION' => $schemaDescription,
-            'SCHEMA' => $schemaData
-        ]);
+            'SCHEMA'      => json_encode(['columns' => $columns], JSON_UNESCAPED_UNICODE),
+        ];
 
-        if ($result->isSuccess()) {
-            return new AjaxJson([
-                'schema_id' => $result->getId(),
-                'message' => 'Схема успешно сохранена'
+        // Если передан ID схемы - обновляем существующую, иначе создаём новую
+        if ($schemaId > 0) {
+            $updateResult = TableSchemaTable::update($schemaId, $schemaData);
+            
+            if (!$updateResult->isSuccess()) {
+                return AjaxJson::createError(new ErrorCollection($updateResult->getErrors()));
+            }
+            
+            return AjaxJson::createSuccess([
+                'ID' => $schemaId,
+                'ACTION' => 'UPDATED',
             ]);
         } else {
-            $errors = [];
-            foreach ($result->getErrors() as $error) {
-                $errors[] = new Error($error->getMessage());
+            $addResult = TableSchemaTable::add($schemaData);
+            
+            if (!$addResult->isSuccess()) {
+                return AjaxJson::createError(new ErrorCollection($addResult->getErrors()));
             }
-            return new AjaxJson(null, $errors);
+            
+            return AjaxJson::createSuccess([
+                'ID' => $addResult->getId(),
+                'ACTION' => 'CREATED',
+            ]);
         }
+    }
+
+    /**
+     * Загружает данные схемы по ID.
+     *
+     * @param int $schemaId ID схемы
+     * @return AjaxJson
+     */
+    public function loadSchemaAction(int $schemaId): AjaxJson
+    {
+        // Проверка подключения модуля
+        if (!Loader::includeModule('grebion.tables')) {
+            return AjaxJson::createError(new ErrorCollection([new Error('MODULE_NOT_LOADED')]));
+        }
+
+        if ($schemaId <= 0) {
+            return AjaxJson::createError(new ErrorCollection([new Error('INVALID_SCHEMA_ID')]));
+        }
+
+        $schemaData = TableSchemaTable::getById($schemaId)->fetch();
+        if (!$schemaData) {
+            return AjaxJson::createError(new ErrorCollection([new Error('SCHEMA_NOT_FOUND')]));
+        }
+
+        $schema = json_decode($schemaData['SCHEMA'], true);
+        
+        return AjaxJson::createSuccess([
+            'ID'          => $schemaData['ID'],
+            'NAME'        => $schemaData['NAME'],
+            'DESCRIPTION' => $schemaData['DESCRIPTION'],
+            'COLUMNS'     => $schema['columns'] ?? [],
+        ]);
     }
 }

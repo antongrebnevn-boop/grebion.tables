@@ -1,350 +1,395 @@
-window.GrebionTableSettings = {
-        columnIndex: 0,
-        componentId: null,
+/**
+ * Компонент управления настройками таблиц
+ * @namespace GrebionTableSettings
+ */
+window.GrebionTableSettings = window.GrebionTableSettings || {
+    
+    /**
+     * Инициализация компонента
+     * @param {string} componentId - ID компонента
+     * @param {number} initialSchemaId - Начальный ID схемы
+     * @param {Object} columnTypes - Типы колонок
+     */
+    init: function(componentId, initialSchemaId, columnTypes) {
+        this.componentId = componentId;
+        this.columnTypes = columnTypes || {};
         
-        init: function(componentId, initialColumnCount) {
-            this.componentId = componentId;
-            this.columnIndex = initialColumnCount || 0;
-            this.bindEvents();
-        },
+        const select = document.getElementById(componentId + '-schema-select');
         
-        bindEvents: function() {
-            var self = this;
-            
-            // Обработчик для всех кнопок с data-action
-            document.addEventListener('click', function(e) {
-                var action = e.target.getAttribute('data-action');
-                var componentId = e.target.getAttribute('data-component-id');
-                var index = e.target.getAttribute('data-index');
-                
-                if (!action || !componentId) return;
-                
-                switch (action) {
-                    case 'add-column':
-                        self.addColumn(componentId);
-                        break;
-                    case 'remove-column':
-                        self.removeColumn(componentId, parseInt(index));
-                        break;
-                    case 'toggle-column':
-                        self.toggleColumn(componentId, parseInt(index));
-                        break;
-                    case 'save-schema':
-                        self.saveSchema(componentId);
-                        break;
-                }
+        if (select) {
+            select.addEventListener('change', function() {
+                GrebionTableSettings.onSchemaSelect(componentId, this.value);
             });
-            
-            // Обработчик для select схемы
-            document.addEventListener('change', function(e) {
-                var action = e.target.getAttribute('data-action');
-                var componentId = e.target.getAttribute('data-component-id');
+        }
+        
+        // Если есть начальная схема - загружаем её через AJAX
+        if (initialSchemaId > 0) {
+            this.loadSchemaData(componentId, initialSchemaId);
+        }
+    },
+    
+    /**
+     * Переключение схем
+     * @param {string} componentId - ID компонента
+     * @param {string} schemaId - ID выбранной схемы
+     */
+    onSchemaSelect: function(componentId, schemaId) {
+        const hiddenInput = document.getElementById(componentId + '-schema-id');
+        const newForm = document.getElementById(componentId + '-new-form');
+        const saveBtn = document.getElementById(componentId + '-save-btn');
+        
+        hiddenInput.value = schemaId;
+        
+        if (schemaId === '0') {
+            // Не выбрана схема - скрываем форму
+            newForm.style.display = 'none';
+        } else {
+            // Выбрана существующая схема - загружаем её данные
+            this.loadSchemaData(componentId, schemaId);
+            newForm.style.display = 'block';
+            saveBtn.textContent = 'Обновить схему';
+        }
+    },
+    
+    /**
+     * Загрузка данных схемы по ID
+     * @param {string} componentId - ID компонента
+     * @param {number} schemaId - ID схемы
+     */
+    loadSchemaData: function(componentId, schemaId) {
+        // AJAX-запрос для загрузки схемы
+        BX.ajax.runComponentAction('grebion:table.settings', 'loadSchema', {
+            mode: 'class',
+            data: {
+                schemaId: parseInt(schemaId)
+            }
+        }).then(function(response) {
+            if (response.data) {
+                const schema = response.data;
                 
-                if (action === 'schema-select' && componentId) {
-                    self.onSchemaSelect(componentId, e.target.value);
-                } else if (action === 'type-change' && componentId) {
-                    var index = e.target.getAttribute('data-index');
-                    self.onTypeChange(componentId, parseInt(index), e.target.value);
-                }
-            });
-            
-            // Автообновление схемы при изменении полей
-            document.addEventListener('input', function(e) {
-                if (e.target.matches('.column-code, .column-title, .column-sort, .column-options')) {
-                    var componentId = e.target.closest('.grebion-table-settings').id;
-                    self.updateSchemaJson(componentId);
-                }
-            });
-        },
-        
-        onSchemaSelect: function(componentId, schemaId) {
-            if (schemaId) {
-                // Загружаем выбранную схему
-                this.loadSchema(componentId, schemaId);
-            } else {
-                // Очищаем для создания новой схемы
-                this.clearSchema(componentId);
-            }
-        },
-        
-        loadSchema: function(componentId, schemaId) {
-            // Здесь можно добавить AJAX загрузку схемы
-            // Пока используем данные из select
-            var select = document.getElementById('schema-select-' + componentId);
-            var option = select.querySelector('option[value="' + schemaId + '"]');
-            
-            if (option) {
-                document.getElementById('schema-name-' + componentId).value = option.dataset.schemaName || '';
-                document.getElementById('schema-description-' + componentId).value = option.dataset.schemaDescription || '';
-            }
-        },
-        
-        clearSchema: function(componentId) {
-            document.getElementById('schema-name-' + componentId).value = '';
-            document.getElementById('schema-description-' + componentId).value = '';
-            document.getElementById('columns-container-' + componentId).innerHTML = '';
-            this.columnIndex = 0;
-            this.updateSchemaJson(componentId);
-        },
-        
-        addColumn: function(componentId) {
-            var container = document.getElementById('columns-container-' + componentId);
-            var index = this.columnIndex++;
-            
-            var columnHtml = this.getColumnTemplate(componentId, index);
-            container.insertAdjacentHTML('beforeend', columnHtml);
-            this.updateSchemaJson(componentId);
-        },
-        
-        removeColumn: function(componentId, index) {
-            if (confirm('Удалить колонку?')) {
-                var columnItem = document.querySelector('#columns-container-' + componentId + ' .grebion-column-item[data-index="' + index + '"]');
-                if (columnItem) {
-                    columnItem.remove();
-                    this.updateSchemaJson(componentId);
-                }
-            }
-        },
-        
-        toggleColumn: function(componentId, index) {
-            var columnItem = document.querySelector('#columns-container-' + componentId + ' .grebion-column-item[data-index="' + index + '"]');
-            var content = columnItem.querySelector('.grebion-column-content');
-            
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-            } else {
-                content.style.display = 'none';
-            }
-        },
-        
-        onTypeChange: function(componentId, index, type) {
-            var settingsContainer = document.getElementById('type-settings-' + componentId + '-' + index);
-            
-            if (type === 'select' || type === 'multiselect') {
-                settingsContainer.innerHTML = `
-                    <div class="ui-form-row">
-                        <div class="ui-form-label">
-                            <div class="ui-form-label-text">Варианты (по одному на строку):</div>
-                        </div>
-                        <div class="ui-form-content">
-                            <div class="ui-ctl ui-ctl-textarea ui-ctl-w100">
-                                <textarea class="ui-ctl-element column-options" 
-                                          rows="3"
-                                          placeholder="Вариант 1\nВариант 2\nВариант 3"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } else {
-                settingsContainer.innerHTML = '';
-            }
-            
-            this.updateSchemaJson(componentId);
-        },
-        
-        getColumnTemplate: function(componentId, index) {
-            return `
-                <div class="grebion-column-item" data-index="${index}">
-                    <div class="grebion-column-header">
-                        <div class="grebion-column-drag">
-                            <span class="ui-icon-set --move"></span>
-                        </div>
-                        <div class="grebion-column-title">
-                            <strong>Новая колонка</strong>
-                            <span class="grebion-column-type-badge">Текст</span>
-                        </div>
-                        <div class="grebion-column-actions">
-                            <button type="button" 
-                                    class="ui-btn ui-btn-sm ui-btn-light ui-btn-icon-edit"
-                                    data-component-id="${componentId}"
-                                    data-action="toggle-column"
-                                    data-index="${index}"
-                                    title="Редактировать">
-                            </button>
-                            <button type="button" 
-                                    class="ui-btn ui-btn-sm ui-btn-danger ui-btn-icon-remove"
-                                    data-component-id="${componentId}"
-                                    data-action="remove-column"
-                                    data-index="${index}"
-                                    title="Удалить">
-                            </button>
-                        </div>
-                    </div>
+                // Заполняем основные поля
+                const nameInput = document.getElementById(componentId + '-schema-name');
+                const descInput = document.getElementById(componentId + '-schema-desc');
+                
+                if (nameInput) nameInput.value = schema.NAME || '';
+                if (descInput) descInput.value = schema.DESCRIPTION || '';
+                
+                // Полностью очищаем контейнер колонок
+                const container = document.getElementById(componentId + '-columns');
+                container.innerHTML = '';
+                
+                // Заполняем новые колонки (сортируем по полю sort)
+                if (schema.COLUMNS && schema.COLUMNS.length > 0) {
+                    const sortedColumns = schema.COLUMNS.sort(function(a, b) {
+                        const sortA = parseInt(a.SORT || a.sort) || 0;
+                        const sortB = parseInt(b.SORT || b.sort) || 0;
+                        return sortA - sortB;
+                    });
                     
-                    <div class="grebion-column-content" style="display: block;">
-                        <div class="ui-form-row-group">
-                            <div class="ui-form-row">
-                                <div class="ui-form-label">
-                                    <div class="ui-form-label-text">Код колонки:</div>
-                                </div>
-                                <div class="ui-form-content">
-                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
-                                        <input type="text" 
-                                               class="ui-ctl-element column-code" 
-                                               placeholder="column_code"
-                                               required>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="ui-form-row">
-                                <div class="ui-form-label">
-                                    <div class="ui-form-label-text">Название:</div>
-                                </div>
-                                <div class="ui-form-content">
-                                    <div class="ui-ctl ui-ctl-textbox ui-ctl-w100">
-                                        <input type="text" 
-                                               class="ui-ctl-element column-title" 
-                                               placeholder="Название колонки"
-                                               required>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="ui-form-row">
-                                <div class="ui-form-label">
-                                    <div class="ui-form-label-text">Тип:</div>
-                                </div>
-                                <div class="ui-form-content">
-                                    <div class="ui-ctl ui-ctl-after-icon ui-ctl-dropdown">
-                                        <div class="ui-ctl-after ui-ctl-icon-angle"></div>
-                                        <select class="ui-ctl-element column-type" 
-                                                 data-component-id="${componentId}"
-                                                 data-action="type-change"
-                                                 data-index="${index}">
-                                             ${this.getColumnTypeOptions()}
-                                         </select>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="ui-form-row">
-                                <div class="ui-form-label">
-                                    <div class="ui-form-label-text">Сортировка:</div>
-                                </div>
-                                <div class="ui-form-content">
-                                    <div class="ui-ctl ui-ctl-textbox">
-                                        <input type="number" 
-                                               class="ui-ctl-element column-sort" 
-                                               value="${(index + 1) * 100}"
-                                               min="0">
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="grebion-column-type-settings" id="type-settings-${componentId}-${index}">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        },
-         
-         getColumnTypeOptions: function() {
-             var options = '';
-             if (window.grebionColumnTypes) {
-                 Object.keys(window.grebionColumnTypes).forEach(function(typeCode) {
-                     options += '<option value="' + typeCode + '">' + window.grebionColumnTypes[typeCode] + '</option>';
-                 });
-             }
-             return options;
-         },
-         
-         saveSchema: function(componentId) {
-            var schemaName = document.getElementById('schema-name-' + componentId).value;
-            var schemaDescription = document.getElementById('schema-description-' + componentId).value;
-            var schemaJson = document.getElementById('schema-json-' + componentId).value;
-            
-            if (!schemaName) {
-                alert('Введите название схемы');
-                return;
-            }
-            
-            // Отправляем данные через стандартный AJAX Bitrix
-            BX.ajax.runComponentAction('grebion:table.settings', 'saveSchema', {
-                mode: 'class',
-                data: {
-                    schemaData: schemaJson,
-                    schemaName: schemaName,
-                    schemaDescription: schemaDescription,
-                    sessid: BX.bitrix_sessid()
-                }
-            }).then(function(response) {
-                if (response.data) {
-                    alert('Схема успешно сохранена');
-                    // Обновляем список схем если нужно
-                    if (response.data.schema_id) {
-                        var select = document.getElementById('schema-select-' + componentId);
-                        var option = select.querySelector('option[value="' + response.data.schema_id + '"]');
-                        if (!option) {
-                            option = document.createElement('option');
-                            option.value = response.data.schema_id;
-                            option.textContent = schemaName;
-                            select.appendChild(option);
-                        }
-                        select.value = response.data.schema_id;
-                    }
-                } else {
-                    // Проверяем ошибки в поле status
-                    var errorMessage = 'Неизвестная ошибка';
-                    if (response.status && response.status.length > 0) {
-                        errorMessage = response.status[0].message;
-                    } else if (response.errors && response.errors.length > 0) {
-                        errorMessage = response.errors[0].message;
-                    }
-                    alert('Ошибка: ' + errorMessage);
-                }
-            }).catch(function(response) {
-                var errorMessage = 'Ошибка соединения с сервером';
-                if (response.status && response.status.length > 0) {
-                    errorMessage = response.status[0].message;
-                } else if (response.errors && response.errors.length > 0) {
-                    errorMessage = response.errors[0].message;
-                }
-                alert('Ошибка: ' + errorMessage);
-            });
-        },
-        
-        updateSchemaJson: function(componentId) {
-            var container = document.getElementById('columns-container-' + componentId);
-            var columns = container.querySelectorAll('.grebion-column-item');
-            var schema = [];
-            
-            columns.forEach(function(column, index) {
-                var code = column.querySelector('.column-code').value;
-                var title = column.querySelector('.column-title').value;
-                var type = column.querySelector('.column-type').value;
-                var sort = column.querySelector('.column-sort').value;
-                
-                var columnData = {
-                    code: code,
-                    title: title,
-                    type: type,
-                    sort: parseInt(sort) || (index + 1) * 100
-                };
-                
-                var optionsTextarea = column.querySelector('.column-options');
-                if (optionsTextarea && optionsTextarea.value) {
-                    columnData.options = optionsTextarea.value.split('\n').filter(function(option) {
-                        return option.trim() !== '';
+                    sortedColumns.forEach(function(column, index) {
+                        const columnHtml = GrebionTableSettings.getColumnTemplate(componentId, index, column);
+                        container.insertAdjacentHTML('beforeend', columnHtml);
                     });
                 }
+            }
+        }).catch(function(response) {
+            let errorMessage = 'Ошибка загрузки схемы';
+            if (response.errors && response.errors.length > 0) {
+                errorMessage = response.errors[0].message || errorMessage;
+            }
+            alert('Ошибка: ' + errorMessage);
+        });
+    },
+    
+    /**
+     * Создание новой схемы
+     * @param {string} componentId - ID компонента
+     */
+    createNewSchema: function(componentId) {
+        const hiddenInput = document.getElementById(componentId + '-schema-id');
+        const newForm = document.getElementById(componentId + '-new-form');
+        const saveBtn = document.getElementById(componentId + '-save-btn');
+        const select = document.getElementById(componentId + '-schema-select');
+        
+        // Сбрасываем выбор в селекте
+        select.value = '0';
+        
+        // Очищаем форму
+        this.clearNewSchemaForm(componentId);
+        
+        // Показываем форму
+        newForm.style.display = 'block';
+        
+        // Меняем текст кнопки
+        saveBtn.textContent = 'Сохранить схему';
+        
+        // Сбрасываем hidden input
+        hiddenInput.value = '0';
+    },
+    
+    /**
+     * Добавление новой колонки
+     * @param {string} componentId - ID компонента
+     */
+    addColumn: function(componentId) {
+        const container = document.getElementById(componentId + '-columns');
+        const index = container.children.length;
+        
+        const columnHtml = this.getColumnTemplate(componentId, index);
+        container.insertAdjacentHTML('beforeend', columnHtml);
+    },
+    
+    /**
+     * Генерация HTML шаблона колонки
+     * @param {string} componentId - ID компонента
+     * @param {number} index - Индекс колонки
+     * @param {Object} columnData - Данные колонки
+     * @returns {string} HTML шаблон
+     */
+    getColumnTemplate: function(componentId, index, columnData) {
+        columnData = columnData || {};
+        
+        const typeOptions = Object.entries(this.columnTypes)
+            .map(([code, name]) => {
+                const selectedType = columnData.TYPE || columnData.type || '';
+                const selected = (selectedType === code) ? 'selected' : '';
+                return `<option value="${code}" ${selected}>${name}</option>`;
+            })
+            .join('');
+            
+        return `
+            <div class="grebion-column-item" data-index="${index}">
+                <div class="grebion-column-header">
+                    <span>Колонка ${index + 1}</span>
+                    <button type="button" class="btn btn-sm btn-danger" 
+                            onclick="GrebionTableSettings.removeColumn('${componentId}', ${index})">
+                        Удалить
+                    </button>
+                </div>
+                <div class="grebion-column-fields">
+                    <div class="form-group">
+                        <label>Код:</label>
+                        <input type="text" class="form-control column-code" 
+                               placeholder="column_${index + 1}" 
+                               value="${columnData.CODE || columnData.code || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Название:</label>
+                        <input type="text" class="form-control column-title" 
+                               placeholder="Колонка ${index + 1}" 
+                               value="${columnData.TITLE || columnData.title || ''}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Тип:</label>
+                        <select class="form-control column-type" onchange="GrebionTableSettings.onTypeChange(this, ${index})">
+                            ${typeOptions}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Сортировка:</label>
+                        <input type="number" class="form-control column-sort" 
+                               value="${columnData.SORT || columnData.sort || ((index + 1) * 100)}" min="0">
+                    </div>
+                </div>
                 
-                schema.push(columnData);
+                <!-- Дополнительные настройки для select/multiselect -->
+                <div class="grebion-column-options" style="display: ${((columnData.TYPE || columnData.type) === 'select' || (columnData.TYPE || columnData.type) === 'multiselect') ? 'block' : 'none'}">
+                    <div class="form-group">
+                        <label>Варианты списка (по одному на строку):</label>
+                        <textarea class="form-control column-options" rows="4" placeholder="Вариант 1\nВариант 2\nВариант 3">${((columnData.OPTIONS || columnData.options) || []).join('\n')}</textarea>
+                        <small class="form-text text-muted">Введите каждый вариант с новой строки</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+    
+    /**
+     * Обработчик изменения типа колонки
+     * @param {HTMLElement} selectElement - Элемент select
+     * @param {number} index - Индекс колонки
+     */
+    onTypeChange: function(selectElement, index) {
+        const columnItem = selectElement.closest('.grebion-column-item');
+        const optionsContainer = columnItem.querySelector('.grebion-column-options');
+        const selectedType = selectElement.value;
+        
+        if (selectedType === 'select' || selectedType === 'multiselect') {
+            optionsContainer.style.display = 'block';
+        } else {
+            optionsContainer.style.display = 'none';
+        }
+    },
+    
+    /**
+     * Удаление колонки
+     * @param {string} componentId - ID компонента
+     * @param {number} index - Индекс колонки
+     */
+    removeColumn: function(componentId, index) {
+        const container = document.getElementById(componentId + '-columns');
+        const item = container.querySelector(`[data-index="${index}"]`);
+        if (item) {
+            item.remove();
+        }
+    },
+    
+    /**
+     * Сохранение схемы
+     * @param {string} componentId - ID компонента
+     */
+    saveSchema: function(componentId) {
+        const nameInput = document.getElementById(componentId + '-schema-name');
+        const descInput = document.getElementById(componentId + '-schema-desc');
+        const container = document.getElementById(componentId + '-columns');
+        
+        const schemaName = nameInput.value.trim();
+        if (!schemaName) {
+            alert('Введите название схемы');
+            return;
+        }
+        
+        const columns = [];
+        const columnItems = container.querySelectorAll('.grebion-column-item');
+        
+        // Проверка на дублирующиеся коды и названия перед отправкой
+        const usedCodes = [];
+        const usedTitles = [];
+        let hasErrors = false;
+        
+        columnItems.forEach((item, index) => {
+            const code = item.querySelector('.column-code').value.trim();
+            const title = item.querySelector('.column-title').value.trim();
+            const type = item.querySelector('.column-type').value;
+            const sort = parseInt(item.querySelector('.column-sort').value) || ((index + 1) * 100);
+            
+            if (code && title) {
+                // Проверка на дублирующиеся коды
+                if (usedCodes.includes(code)) {
+                    alert('Код колонки "' + code + '" уже используется');
+                    hasErrors = true;
+                    return;
+                }
+                usedCodes.push(code);
                 
-                // Обновляем заголовок колонки
-                var titleElement = column.querySelector('.grebion-column-title strong');
-                var typeBadge = column.querySelector('.grebion-column-type-badge');
-                if (titleElement) titleElement.textContent = title || 'Колонка ' + (index + 1);
-                if (typeBadge) {
-                    var typeSelect = column.querySelector('.column-type');
-                    var selectedOption = typeSelect.options[typeSelect.selectedIndex];
-                    if (selectedOption) {
-                        typeBadge.textContent = selectedOption.text;
+                // Проверка на дублирующиеся названия
+                if (usedTitles.includes(title)) {
+                    alert('Название колонки "' + title + '" уже используется');
+                    hasErrors = true;
+                    return;
+                }
+                usedTitles.push(title);
+                
+                // Формируем данные колонки
+                const columnData = { code, title, type, sort };
+                
+                // Для select/multiselect добавляем варианты
+                if (type === 'select' || type === 'multiselect') {
+                    const optionsTextarea = item.querySelector('.column-options');
+                    if (optionsTextarea) {
+                        const optionsText = optionsTextarea.value.trim();
+                        if (optionsText) {
+                            columnData.options = optionsText.split('\n')
+                                .map(option => option.trim())
+                                .filter(option => option.length > 0);
+                        } else {
+                            alert('Для типа "' + (type === 'select' ? 'Список' : 'Множественный список') + '" необходимо указать варианты');
+                            hasErrors = true;
+                            return;
+                        }
                     }
                 }
-            });
-            
-            document.getElementById('schema-json-' + componentId).value = JSON.stringify(schema);
+                
+                columns.push(columnData);
+            }
+        });
+        
+        if (hasErrors) {
+            return;
         }
-    };
+        
+        if (columns.length === 0) {
+            alert('Добавьте хотя бы одну колонку');
+            return;
+        }
+        
+        // Получаем текущий ID схемы для определения - создавать новую или обновлять существующую
+        const hiddenInput = document.getElementById(componentId + '-schema-id');
+        const currentSchemaId = parseInt(hiddenInput.value) || 0;
+        
+        // AJAX-запрос для сохранения схемы
+        BX.ajax.runComponentAction('grebion:table.settings', 'saveSchema', {
+            mode: 'class',
+            data: {
+                schemaName: schemaName,
+                schemaDescription: descInput.value.trim(),
+                columns: columns,
+                schemaId: currentSchemaId
+            }
+        }).then(function(response) {
+            if (response.data && response.data.ID) {
+                const newSchemaId = response.data.ID;
+                const action = response.data.ACTION;
+                
+                // Обновляем скрытое поле с ID схемы
+                const hiddenInput = document.getElementById(componentId + '-schema-id');
+                hiddenInput.value = newSchemaId;
+                
+                const select = document.getElementById(componentId + '-schema-select');
+                
+                if (action === 'CREATED') {
+                    // Добавляем новую схему в селект
+                    const option = document.createElement('option');
+                    option.value = newSchemaId;
+                    option.textContent = schemaName;
+                    option.selected = true;
+                    select.appendChild(option);
+                    
+                    alert('Схема успешно создана');
+                } else if (action === 'UPDATED') {
+                    // Обновляем название в селекте
+                    const selectedOption = select.querySelector(`option[value="${newSchemaId}"]`);
+                    if (selectedOption) {
+                        selectedOption.textContent = schemaName;
+                    }
+                    
+                    alert('Схема успешно обновлена');
+                }
+                
+                // Обновляем текст кнопки на "Обновить схему"
+                const saveBtn = document.getElementById(componentId + '-save-btn');
+                saveBtn.textContent = 'Обновить схему';
+            }
+        }).catch(function(response) {
+            let errorMessage = 'Неизвестная ошибка';
+            if (response.errors && response.errors.length > 0) {
+                const error = response.errors[0];
+                switch(error.code) {
+                    case 'DUPLICATE_CODE':
+                        errorMessage = 'Код колонки "' + (error.customData?.CODE || '') + '" уже используется';
+                        break;
+                    case 'DUPLICATE_TITLE':
+                        errorMessage = 'Название колонки "' + (error.customData?.TITLE || '') + '" уже используется';
+                        break;
+                    default:
+                        errorMessage = error.message || 'Ошибка при сохранении схемы';
+                }
+            }
+            alert('Ошибка: ' + errorMessage);
+        });
+    },
+    
+    /**
+     * Очистка формы создания новой схемы
+     * @param {string} componentId - ID компонента
+     */
+    clearNewSchemaForm: function(componentId) {
+        const nameInput = document.getElementById(componentId + '-schema-name');
+        const descInput = document.getElementById(componentId + '-schema-desc');
+        const container = document.getElementById(componentId + '-columns');
+        
+        if (nameInput) nameInput.value = '';
+        if (descInput) descInput.value = '';
+        if (container) container.innerHTML = '';
+    }
+};

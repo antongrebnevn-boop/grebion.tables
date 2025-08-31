@@ -3,9 +3,7 @@
 namespace Grebion\Tables\IblockProperty;
 
 use Bitrix\Main\Localization\Loc;
-use Grebion\Tables\Service\TableService;
-use Grebion\Tables\Repository\TableRepository;
-use Grebion\Tables\Model\TableDataTable;
+use Bitrix\Main\Application;
 
 Loc::loadMessages(__FILE__);
 
@@ -15,299 +13,130 @@ Loc::loadMessages(__FILE__);
 class TableProperty
 {
     public const USER_TYPE = 'grebion_table';
-    public const RENDER_COMPONENT = 'grebion:table.settings';
 
     /**
-     * Возвращает описание пользовательского типа свойства
+     * Возвращает описание пользовательского типа свойства.
      *
-     * @return array
+     * @return array<string, mixed>
      */
-    public static function GetUserTypeDescription(): array
+    public static function getUserTypeDescription(): array
     {
         return [
-            'PROPERTY_TYPE' => 'S',
-            'USER_TYPE' => self::USER_TYPE,
-            'DESCRIPTION' => Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_DESCRIPTION'),
-            'GetPropertyFieldHtml' => [__CLASS__, 'GetPropertyFieldHtml'],
-            'GetPropertyFieldHtmlMulty' => [__CLASS__, 'GetPropertyFieldHtml'],
-            'GetPublicViewHTML' => [__CLASS__, 'GetPublicViewHTML'],
-            'GetPublicEditHTML' => [__CLASS__, 'GetPublicEditHTML'],
-            'GetAdminListViewHTML' => [__CLASS__, 'GetAdminListViewHTML'],
-            'GetAdminFilterHTML' => [__CLASS__, 'GetAdminFilterHTML'],
-            'GetSettingsHTML' => [__CLASS__, 'GetSettingsHTML'],
-            'PrepareSettings' => [__CLASS__, 'PrepareSettings'],
-            'CheckFields' => [__CLASS__, 'CheckFields'],
-            'ConvertToDB' => [__CLASS__, 'ConvertToDB'],
-            'ConvertFromDB' => [__CLASS__, 'ConvertFromDB'],
+            'PROPERTY_TYPE'          => 'S',
+            'USER_TYPE'              => self::USER_TYPE,
+            'DESCRIPTION'            => Loc::getMessage('GREBION_TABLE_PROP_TITLE') ?? 'Table',
+            'CLASS_NAME'             => __CLASS__,
+
+            // callbacks
+            'GetSettingsHTML'        => [__CLASS__, 'getSettingsHtml'],
+            'PrepareSettings'        => [__CLASS__, 'prepareSettings'],
+            'GetPropertyFieldHtml'   => [__CLASS__, 'getPropertyFieldHtml'],
+            'GetAdminListViewHTML'   => [__CLASS__, 'getAdminListViewHtml'],
+            'ConvertToDB'            => [__CLASS__, 'convertToDb'],
+            'ConvertFromDB'          => [__CLASS__, 'convertFromDb'],
+            'GetPublicViewHTML'      => [__CLASS__, 'getPublicViewHtml'],
         ];
     }
 
     /**
-     * Возвращает HTML для редактирования свойства в админке
+     * Формирует HTML настроек свойства в административной форме.
      *
-     * @param array $arProperty
-     * @param array $value
-     * @param array $strHTMLControlName
-     * @return string
+     * @param array<string, mixed> $property            Описание свойства.
+     * @param array<string, mixed> $htmlControlName     Массив с ключами для имён инпутов.
+     * @param array<string, mixed> $propertyFields      Доп. параметры (по ссылке).
      */
-    public static function GetPropertyFieldHtml(array $arProperty, array $value, array $strHTMLControlName): string
+    public static function getSettingsHtml(array $property, array $htmlControlName, array &$propertyFields): string
     {
         global $APPLICATION;
 
-        if (\CModule::IncludeModule('grebion.tables')) {
-            ob_start();
-            $APPLICATION->IncludeComponent(
-                self::RENDER_COMPONENT,
-                '',
-                [
-                    'PROPERTY' => $arProperty,
-                    'VALUE' => $value,
-                    'HTML_CONTROL_NAME' => $strHTMLControlName,
-                ],
-                false
-            );
-            return ob_get_clean();
+        // Битрикс может сохранять настройки в разных местах, проверяем все варианты
+        $schemaId = 0;
+        
+        // Вариант 1: в USER_TYPE_SETTINGS (при создании/редактировании)
+        if (isset($property['USER_TYPE_SETTINGS']['SCHEMA_ID'])) {
+            $schemaId = (int) $property['USER_TYPE_SETTINGS']['SCHEMA_ID'];
+        }
+        // Вариант 2: в SETTINGS (сохранённые настройки при повторном открытии)
+        elseif (isset($property['SETTINGS']['SCHEMA_ID'])) {
+            $schemaId = (int) $property['SETTINGS']['SCHEMA_ID'];
+        }
+        // Вариант 3: непосредственно в массиве property
+        elseif (isset($property['SCHEMA_ID'])) {
+            $schemaId = (int) $property['SCHEMA_ID'];
         }
 
-        return self::GetSimpleSelectHTML($arProperty, $value, $strHTMLControlName);
+        // Правильное формирование имени поля
+        $inputName = $htmlControlName['NAME'] . '[SCHEMA_ID]';
+
+        ob_start();
+        $APPLICATION->IncludeComponent(
+            'grebion:table.settings',
+            '',
+            [
+                'SCHEMA_ID'     => $schemaId,
+                // Правильное имя для поля SCHEMA_ID в настройках свойства
+                'INPUT_NAME'    => $inputName,
+            ],
+            null,
+            ['HIDE_ICONS' => 'Y']
+        );
+
+        return ob_get_clean() ?: '';
     }
 
     /**
-     * Простой HTML селект как fallback
+     * Подготавливает данные настроек для сохранения.
      *
-     * @param array $arProperty
-     * @param array $value
-     * @param array $strHTMLControlName
-     * @return string
+     * @param array<string, mixed> $property Параметры свойства после сабмита формы.
+     * @return array<string, int>
      */
-    private static function GetSimpleSelectHTML(array $arProperty, array $value, array $strHTMLControlName): string
+    public static function prepareSettings(array $property): array
     {
-        $tableRepository = new TableRepository();
-        $tables = $tableRepository->getList();
-        $currentValue = $value['VALUE'] ?? '';
+        // Битрикс передаёт сюда массив с данными из $_POST
+        $settings = $property['USER_TYPE_SETTINGS'] ?? [];
         
-        $html = '<select name="' . htmlspecialcharsbx($strHTMLControlName['VALUE']) . '">';
-        $html .= '<option value="">' . Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_SELECT_TABLE') . '</option>';
-        
-        foreach ($tables as $table) {
-            $selected = ($currentValue == $table->getId()) ? ' selected' : '';
-            $html .= '<option value="' . $table->getId() . '"' . $selected . '>' . htmlspecialcharsbx($table->getName()) . '</option>';
+        // Если пришли новые данные из формы - используем их
+        if (isset($settings['SCHEMA_ID'])) {
+            $schemaId = (int) $settings['SCHEMA_ID'];
+        } else {
+            // Иначе берём текущие сохранённые настройки (при редактировании)
+            $schemaId = (int) ($property['SETTINGS']['SCHEMA_ID'] ?? 0);
         }
-        
-        $html .= '</select>';
-        
-        return $html;
+
+        $result = [
+            'SCHEMA_ID' => $schemaId,
+        ];
+
+        return $result;
     }
 
-    /**
-     * Возвращает HTML для публичного просмотра
-     *
-     * @param array $arProperty
-     * @param array $value
-     * @param array $strHTMLControlName
-     * @return string
-     */
-    public static function GetPublicViewHTML(array $arProperty, array $value, array $strHTMLControlName): string
+    public static function getPropertyFieldHtml($property, $value, $htmlControlName): string
     {
-        if (empty($value['VALUE'])) {
-            return '';
-        }
-
-        $tableId = (int)$value['VALUE'];
-        $tableRepository = new TableRepository();
-        $table = $tableRepository->getById($tableId);
-        
-        if (!$table || !is_object($table)) {
-            return '';
-        }
-
-        return '<a href="/bitrix/admin/grebion_tables_table_edit.php?ID=' . $tableId . '" target="_blank">' . 
-               htmlspecialcharsbx($table->getName()) . '</a>';
+        return '';
     }
 
-    /**
-     * Возвращает HTML для публичного редактирования
-     *
-     * @param array $arProperty
-     * @param array $value
-     * @param array $strHTMLControlName
-     * @return string
-     */
-    public static function GetPublicEditHTML(array $arProperty, array $value, array $strHTMLControlName): string
+    public static function getAdminListViewHtml($property, $value, $htmlControlName): string
     {
-        global $APPLICATION;
-        
-        if (\CModule::IncludeModule('grebion.tables')) {
-            ob_start();
-            $APPLICATION->IncludeComponent(
-                self::RENDER_COMPONENT,
-                '',
-                [
-                    'PROPERTY' => $arProperty,
-                    'VALUE' => $value,
-                    'HTML_CONTROL_NAME' => $strHTMLControlName,
-                ],
-                false
-            );
-            return ob_get_clean();
-        }
-        
-        return self::GetSimpleSelectHTML($arProperty, $value, $strHTMLControlName);
+        return (string) $value['VALUE'];
     }
 
-    /**
-     * Возвращает HTML для отображения в списке админки
-     *
-     * @param array $arProperty
-     * @param array $value
-     * @param array $strHTMLControlName
-     * @return string
-     */
-    public static function GetAdminListViewHTML(array $arProperty, array $value, array $strHTMLControlName): string
-    {
-        if (empty($value['VALUE'])) {
-            return '';
-        }
-
-        $tableId = (int)$value['VALUE'];
-        $tableRepository = new TableRepository();
-        $table = $tableRepository->getById($tableId);
-        
-        if (!$table || !is_object($table)) {
-            return Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_TABLE_NOT_FOUND');
-        }
-
-        return htmlspecialcharsbx($table->getName());
-    }
-
-    /**
-     * Возвращает HTML для фильтра в админке
-     *
-     * @param array $arProperty
-     * @param array $strHTMLControlName
-     * @return string
-     */
-    public static function GetAdminFilterHTML(array $arProperty, array $strHTMLControlName): string
-    {
-        $tableRepository = new TableRepository();
-        $tables = $tableRepository->getList();
-        
-        $html = '<select name="' . htmlspecialcharsbx($strHTMLControlName['VALUE']) . '">';
-        $html .= '<option value="">' . Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_SELECT_TABLE') . '</option>';
-        
-        foreach ($tables as $table) {
-            $html .= '<option value="' . $table->getId() . '">' . htmlspecialcharsbx($table->getName()) . '</option>';
-        }
-        
-        $html .= '</select>';
-        
-        return $html;
-    }
-
-    /**
-     * Возвращает HTML для настроек свойства
-     *
-     * @param array $arProperty
-     * @param array $strHTMLControlName
-     * @param array $arPropertyFields
-     * @return string
-     */
-    public static function GetSettingsHTML($arProperty, $strHTMLControlName, &$arPropertyFields)
-    {
-        return;
-    }
-
-    /**
-     * Подготавливает настройки свойства
-     *
-     * @param array $arFields
-     * @return array
-     */
-    public static function PrepareSettings(array $arFields): array
+    public static function convertToDb($property, $value): array
     {
         return [
-            'DEFAULT_VALUE' => $arFields['DEFAULT_VALUE'] ?? ''
+            'VALUE'       => (int) ($value['VALUE'] ?? 0),
+            'DESCRIPTION' => null,
         ];
     }
 
-    /**
-     * Проверяет корректность значения
-     *
-     * @param array $arProperty
-     * @param array $value
-     * @return array
-     */
-    public static function CheckFields(array $arProperty, array $value): array
+    public static function convertFromDb($property, $value): array
     {
-        $arResult = [];
-        
-        if (!empty($value['VALUE'])) {
-            $tableId = (int)$value['VALUE'];
-            
-            if ($tableId <= 0) {
-                $arResult[] = [
-                    'id' => $arProperty['ID'],
-                    'text' => Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_INVALID_TABLE_ID')
-                ];
-            } else {
-                $tableRepository = new TableRepository();
-                $table = $tableRepository->getById($tableId);
-                
-                if (!$table || !is_object($table)) {
-                    $arResult[] = [
-                        'id' => $arProperty['ID'],
-                        'text' => Loc::getMessage('GREBION_TABLES_IBLOCK_PROPERTY_TABLE_NOT_EXISTS')
-                    ];
-                } else {
-                    $arResult[] = [
-                        'id' => $arProperty['ID'],
-                        'text' => htmlspecialcharsbx($table->getName())
-                    ];
-                }
-            }
-        }
-        
-        return $arResult;
-    }
+        $value['VALUE'] = (int) $value['VALUE'];
 
-    /**
-     * Конвертирует значение для сохранения в БД
-     *
-     * @param array $arProperty
-     * @param array $value
-     * @return array
-     */
-    public static function ConvertToDB(array $arProperty, array $value): array
-    {
-        if (!empty($value['VALUE'])) {
-            // Сохраняем только ID таблицы
-            $value['VALUE'] = (int)$value['VALUE'];
-        }
-        
         return $value;
     }
 
-    /**
-     * Конвертирует значение из БД для отображения
-     *
-     * @param array $arProperty
-     * @param array $value
-     * @return array
-     */
-    public static function ConvertFromDB(array $arProperty, array $value): array
+    public static function getPublicViewHtml($property, $value, $htmlControlName): string
     {
-        if (!empty($value['VALUE'])) {
-            $tableId = (int)$value['VALUE'];
-            if ($tableId > 0) {
-                // Проверяем существование таблицы
-                $tableRepository = new TableRepository();
-                $table = $tableRepository->getById($tableId);
-                if ($table) {
-                    $value['VALUE'] = $tableId;
-                }
-            }
-        }
-        
-        return $value;
+        return (string) $value['VALUE'];
     }
 }
