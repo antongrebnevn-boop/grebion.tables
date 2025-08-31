@@ -24,7 +24,6 @@ use Bitrix\Main\Application;
 
 /**
  * Основной сервис для работы с таблицами
- * Объединяет функционал TableManager и TableDataService
  */
 class TableService
 {
@@ -493,7 +492,7 @@ class TableService
     }
 
     /**
-     * Создать таблицу с колонками (из TableManager)
+     * Создать таблицу с колонками
      */
     public static function createTableWithColumns(string $title, string $ownerType, int $ownerId, array $columns): TableResult
      {
@@ -540,7 +539,7 @@ class TableService
     }
 
     /**
-     * Получить полную информацию о таблице с колонками (из TableManager)
+     * Получить полную информацию о таблице с колонками
      */
     public static function getTableInfo(int $tableId): ?array
     {
@@ -580,7 +579,7 @@ class TableService
     }
 
     /**
-     * Добавить колонку (из TableManager)
+     * Добавить колонку
      */
     public static function addColumn(int $tableId, string $title, string $code, string $type, array $settings = []): Result
     {
@@ -594,7 +593,7 @@ class TableService
     }
 
     /**
-     * Удалить колонку (из TableManager)
+     * Удалить колонку
      */
     public static function deleteColumn(int $columnId): TableResult
      {
@@ -618,7 +617,7 @@ class TableService
     }
 
     /**
-     * Добавить строку (из TableManager)
+     * Добавить строку
      */
     public static function addRow(int $tableId, array $data, int $sort = 500): Result
     {
@@ -630,7 +629,7 @@ class TableService
     }
 
     /**
-     * Обновить строку (из TableManager)
+     * Обновить строку
      */
     public static function updateRow(int $rowId, array $data): Result
     {
@@ -640,7 +639,7 @@ class TableService
     }
 
     /**
-     * Удалить строку (из TableManager)
+     * Удалить строку
      */
     public static function deleteRow(int $rowId): TableResult
      {
@@ -664,7 +663,7 @@ class TableService
     }
 
     /**
-     * Получить данные таблицы с пагинацией (из TableManager)
+     * Получить данные таблицы с пагинацией
      */
     public static function getTableData(int $tableId, int $page = 1, int $limit = 20): array
     {
@@ -692,7 +691,7 @@ class TableService
     }
 
     /**
-     * Поиск по таблице (из TableManager)
+     * Поиск по таблице
      */
     public static function searchTable(int $tableId, string $query): array
     {
@@ -719,7 +718,7 @@ class TableService
     }
 
     /**
-     * Копировать таблицу (из TableManager)
+     * Копировать таблицу
      */
     public static function copyTable(int $sourceTableId, string $newTitle, string $ownerType, int $ownerId, bool $copyData = true): TableResult
      {
@@ -759,7 +758,7 @@ class TableService
      }
 
     /**
-     * Создать таблицу по схеме (из TableDataService)
+     * Создать таблицу по схеме
      */
     public function createTableFromSchema(int $schemaId, string $ownerType, int $ownerId, array $data = []): TableResult
     {
@@ -805,7 +804,7 @@ class TableService
     }
     
     /**
-     * Добавить строки в таблицу (из TableDataService)
+     * Добавить строки в таблицу
      */
     public function addRows(int $tableId, array $rows, ?array $schema = null): TableResult
     {
@@ -856,7 +855,7 @@ class TableService
     }
     
     /**
-     * Обновить строку с валидацией (из TableDataService)
+     * Обновить строку с валидацией
      */
     public function updateRowWithValidation(int $rowId, array $data, ?array $schema = null): TableResult
     {
@@ -901,7 +900,7 @@ class TableService
     }
     
     /**
-     * Удалить строку (из TableDataService)
+     * Удалить строку
      */
     public function deleteRowById(int $rowId): TableResult
     {
@@ -909,7 +908,7 @@ class TableService
     }
     
     /**
-     * Получить данные таблицы (из TableDataService)
+     * Получить данные таблицы
      */
     public function getTableDataArray(int $tableId): array
     {
@@ -963,7 +962,7 @@ class TableService
     }
     
     /**
-     * Валидация данных строки по схеме (из TableDataService)
+     * Валидация данных строки по схеме
      */
     private function validateRowData(array $data, ?array $schema): array
     {
@@ -1262,7 +1261,7 @@ class TableService
     }
     
     /**
-     * Валидация данных таблицы (из TableValidator)
+     * Валидация данных таблицы
      */
     public function validateTableData(array $data): TableResult
      {
@@ -1287,7 +1286,7 @@ class TableService
     }
 
     /**
-     * Валидация данных колонки (из TableValidator)
+     * Валидация данных колонки
      */
     public function validateColumnData(array $data): TableResult
      {
@@ -1309,7 +1308,7 @@ class TableService
     }
 
     /**
-     * Валидация значения ячейки (из TableValidator)
+     * Валидация значения ячейки
      */
     public function validateCellValue($value, string $type, array $settings = []): TableResult
      {
